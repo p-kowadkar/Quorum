@@ -1,0 +1,277 @@
+{
+  "name": "Quorum — Approval Loop (inbound voice → /session/message → actuators)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "node-trigger",
+      "name": "Inbound: voice note",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 360],
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {
+          "chatIds": "YOUR_TELEGRAM_GROUP_CHAT_ID",
+          "userIds": "YOUR_TELEGRAM_USER_ID"
+        }
+      }
+    },
+    {
+      "id": "node-filter-voice",
+      "name": "Is human voice note?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [220, 360],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            { "id": "c-voice", "leftValue": "={{ $json.message.voice.file_id }}", "rightValue": "", "operator": { "type": "string", "operation": "exists", "singleValue": true } },
+            { "id": "c-human", "leftValue": "={{ $json.message.from.is_bot }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-download",
+      "name": "Download voice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [460, 280],
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "download": true,
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "node-stt",
+      "name": "Transcribe (ElevenLabs STT)",
+      "type": "@elevenlabs/n8n-nodes-elevenlabs.elevenLabs",
+      "typeVersion": 1,
+      "position": [680, 280],
+      "parameters": {
+        "resource": "speech",
+        "operation": "speechToText",
+        "file": "data",
+        "additionalOptions": {}
+      }
+    },
+    {
+      "id": "node-emotion",
+      "name": "Read emotion (Valence adapter)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 280],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const t = String($json.text || $json.transcription || $json.transcript || '').toLowerCase(); const hesitant = /(\\buh+\\b|\\bum+\\b|i guess|i think|maybe|not sure|don't know|dunno|hold on|wait|hmm+|nervous|worried|unsure)/.test(t); const confident = /(\\byes\\b|\\byeah\\b|\\byep\\b|ship it|do it|go ahead|approve|approved|confirm|send it|let's go|absolutely)/.test(t); let valence = 0.0, arousal = 0.3, label = 'neutral'; if (hesitant) { valence = -0.5; arousal = 0.7; label = 'stressed'; } else if (confident) { valence = 0.5; arousal = 0.25; label = 'calm'; } return { json: { session_id: 'inc_001', text: String($json.text || $json.transcription || $json.transcript || ''), emotion: { valence: valence, arousal: arousal, label: label } } };"
+      }
+    },
+    {
+      "id": "node-msg",
+      "name": "POST /session/message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1120, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-BRAIN-TUNNEL.ngrok-free.dev/session/message",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            { "name": "ngrok-skip-browser-warning", "value": "true" },
+            { "name": "X-Webhook-Secret", "value": "YOUR_BRAIN_WEBHOOK_SECRET" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ session_id: $json.session_id, from: 'user', text: $json.text, emotion: $json.emotion, is_interrupt: false }) }}",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-split",
+      "name": "Split Out turns",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1360, 160],
+      "parameters": { "fieldToSplitOut": "turns", "include": "noOtherFields", "options": {} }
+    },
+    {
+      "id": "node-resolve",
+      "name": "Resolve agent identity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 160],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const VOICES = { orchestrator: 'EL_VOICE_ORCH', rootcause: 'EL_VOICE_ROOT', coder: 'EL_VOICE_CODER', critic: 'EL_VOICE_CRITIC', pm: 'EL_VOICE_PM' }; const STYLE = { concerned: 0.65, calm: 0.30, methodical: 0.20, neutral: 0.30 }; const emo = $json.emotion || {}; const stability = (typeof emo.stability === 'number') ? emo.stability : 0.5; const style = (emo.style && STYLE[emo.style] != null) ? STYLE[emo.style] : 0.3; const voiceId = VOICES[$json.agent] || VOICES.orchestrator; return { json: Object.assign({}, $json, { voiceId: voiceId, chatId: CHAT_ID, voiceSettings: { stability: stability, similarity_boost: 0.75, style: style, use_speaker_boost: true } }) };"
+      }
+    },
+    {
+      "id": "node-eleven",
+      "name": "Reply TTS",
+      "type": "@elevenlabs/n8n-nodes-elevenlabs.elevenLabs",
+      "typeVersion": 1,
+      "position": [1800, 160],
+      "parameters": {
+        "resource": "speech",
+        "operation": "textToSpeech",
+        "text": "={{ $json.text }}",
+        "voice": { "__rl": true, "mode": "id", "value": "={{ $json.voiceId }}" },
+        "additionalOptions": { "voiceSettings": "={{ JSON.stringify($json.voiceSettings) }}" }
+      }
+    },
+    {
+      "id": "node-switch",
+      "name": "Route by agent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [2020, 160],
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "a-orch", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "orchestrator", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "orchestrator" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "a-root", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "rootcause", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "rootcause" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "a-coder", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "coder", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "coder" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "a-critic", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "critic", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "critic" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "a-pm", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "pm", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "pm" }
+          ]
+        },
+        "options": { "looseTypeValidation": true }
+      }
+    },
+    { "id": "node-send-orch", "name": "Send: Orchestrator", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [2260, 0], "parameters": { "resource": "message", "operation": "sendAudio", "chatId": "={{ $('Resolve agent identity').item.json.chatId }}", "binaryData": true, "binaryPropertyName": "data", "additionalFields": { "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}" } } },
+    { "id": "node-send-root", "name": "Send: RootCause", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [2260, 90], "parameters": { "resource": "message", "operation": "sendAudio", "chatId": "={{ $('Resolve agent identity').item.json.chatId }}", "binaryData": true, "binaryPropertyName": "data", "additionalFields": { "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}" } } },
+    { "id": "node-send-coder", "name": "Send: Coder", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [2260, 180], "parameters": { "resource": "message", "operation": "sendAudio", "chatId": "={{ $('Resolve agent identity').item.json.chatId }}", "binaryData": true, "binaryPropertyName": "data", "additionalFields": { "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}" } } },
+    { "id": "node-send-critic", "name": "Send: Critic", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [2260, 270], "parameters": { "resource": "message", "operation": "sendAudio", "chatId": "={{ $('Resolve agent identity').item.json.chatId }}", "binaryData": true, "binaryPropertyName": "data", "additionalFields": { "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}" } } },
+    { "id": "node-send-pm", "name": "Send: PM", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [2260, 360], "parameters": { "resource": "message", "operation": "sendAudio", "chatId": "={{ $('Resolve agent identity').item.json.chatId }}", "binaryData": true, "binaryPropertyName": "data", "additionalFields": { "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}" } } },
+
+    {
+      "id": "node-if-acting",
+      "name": "status == acting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1360, 520],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "combinator": "and",
+          "conditions": [ { "id": "c-acting", "leftValue": "={{ $json.status }}", "rightValue": "acting", "operator": { "type": "string", "operation": "equals" } } ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-split-actions",
+      "name": "Split Out actions",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1580, 480],
+      "parameters": { "fieldToSplitOut": "actions", "include": "noOtherFields", "options": {} }
+    },
+    {
+      "id": "node-switch-action",
+      "name": "Route by action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [1800, 480],
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "act-rollback", "leftValue": "={{ $json.type }}", "rightValue": "rollback", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "rollback" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "act-issue", "leftValue": "={{ $json.type }}", "rightValue": "create_issue", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "create_issue" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "act-jira", "leftValue": "={{ $json.type }}", "rightValue": "jira_stub", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "jira_stub" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-act-rollback",
+      "name": "Actuator: rollback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2040, 400],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "YOUR_TELEGRAM_GROUP_CHAT_ID",
+        "text": "🟢 Rollback shipped — checkout gateway reverted, store recovering. (NightOwl mitigate endpoint is net-new; this is a stub.)",
+        "additionalFields": { "appendAttribution": false }
+      }
+    },
+    {
+      "id": "node-act-issue",
+      "name": "Actuator: create_issue (GitHub)",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [2040, 510],
+      "parameters": {
+        "resource": "issue",
+        "operation": "create",
+        "owner": { "__rl": true, "mode": "name", "value": "YOUR_GITHUB_OWNER" },
+        "repository": { "__rl": true, "mode": "name", "value": "YOUR_GITHUB_REPO" },
+        "title": "={{ $json.params.title }}",
+        "body": "={{ $json.params.body }}",
+        "labels": [],
+        "assignees": []
+      }
+    },
+    {
+      "id": "node-act-jira",
+      "name": "Actuator: jira_stub",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2040, 620],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "YOUR_TELEGRAM_GROUP_CHAT_ID",
+        "text": "📋 PM: Ticket QUO-142 created, assigned to you.",
+        "additionalFields": { "appendAttribution": false }
+      }
+    }
+  ],
+  "connections": {
+    "Inbound: voice note": { "main": [[ { "node": "Is human voice note?", "type": "main", "index": 0 } ]] },
+    "Is human voice note?": { "main": [ [ { "node": "Download voice", "type": "main", "index": 0 } ], [] ] },
+    "Download voice": { "main": [[ { "node": "Transcribe (ElevenLabs STT)", "type": "main", "index": 0 } ]] },
+    "Transcribe (ElevenLabs STT)": { "main": [[ { "node": "Read emotion (Valence adapter)", "type": "main", "index": 0 } ]] },
+    "Read emotion (Valence adapter)": { "main": [[ { "node": "POST /session/message", "type": "main", "index": 0 } ]] },
+    "POST /session/message": { "main": [[ { "node": "Split Out turns", "type": "main", "index": 0 }, { "node": "status == acting?", "type": "main", "index": 0 } ]] },
+    "Split Out turns": { "main": [[ { "node": "Resolve agent identity", "type": "main", "index": 0 } ]] },
+    "Resolve agent identity": { "main": [[ { "node": "Reply TTS", "type": "main", "index": 0 } ]] },
+    "Reply TTS": { "main": [[ { "node": "Route by agent", "type": "main", "index": 0 } ]] },
+    "Route by agent": {
+      "main": [
+        [ { "node": "Send: Orchestrator", "type": "main", "index": 0 } ],
+        [ { "node": "Send: RootCause", "type": "main", "index": 0 } ],
+        [ { "node": "Send: Coder", "type": "main", "index": 0 } ],
+        [ { "node": "Send: Critic", "type": "main", "index": 0 } ],
+        [ { "node": "Send: PM", "type": "main", "index": 0 } ]
+      ]
+    },
+    "status == acting?": { "main": [ [ { "node": "Split Out actions", "type": "main", "index": 0 } ], [] ] },
+    "Split Out actions": { "main": [[ { "node": "Route by action", "type": "main", "index": 0 } ]] },
+    "Route by action": {
+      "main": [
+        [ { "node": "Actuator: rollback", "type": "main", "index": 0 } ],
+        [ { "node": "Actuator: create_issue (GitHub)", "type": "main", "index": 0 } ],
+        [ { "node": "Actuator: jira_stub", "type": "main", "index": 0 } ]
+      ]
+    }
+  }
+}

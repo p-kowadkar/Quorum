@@ -73,5 +73,41 @@ Invoke-RestMethod -Uri "PASTE_TEST_URL_HERE" -Method Post -ContentType "applicat
 ## Notes & next
 
 - **All native** except the brain call (custom FastAPI → HTTP is correct). ElevenLabs = official node; Telegram = native; (OpenRouter/Firecrawl native too, for later steps).
-- **#4 extends this** with a **Telegram Trigger** → **ElevenLabs Speech-to-Text** → Valence → `POST /session/message`, plus actuators (native **GitHub** node for `create_issue`, native Telegram for the `jira_stub` line, HTTP to NightOwl's mitigate endpoint for `rollback`).
+- **#4 is built** as a second importable workflow — see [Issue #4](#issue-4--approval-loop-quorummessageworkflowjson) below.
 - **Cast/agent keys** (`orchestrator|rootcause|coder|critic|pm`) come from the brain; to add a specialist, add a `VOICES` entry, a Switch rule, and a `Send: …` node bound to its bot.
+
+---
+
+## Issue #4 — Approval loop (`quorum.message.workflow.json`)
+
+Closes the loop: you reply to the room **by voice note**, the brain reads your emotion, and on a steady "ship it" the room acts.
+
+```
+Inbound: voice note (Telegram Trigger, restricted to you + voice only → no bot echo)
+  → Download voice → Transcribe (ElevenLabs STT) → Read emotion (Valence adapter, Code heuristic)
+  → POST /session/message  ──┬──→ render reply turns (Split→Resolve→Reply TTS→Route→5 Send bots)
+                             └──→ if status==acting → Split actions → Route by action:
+                                   rollback → canned msg · create_issue → GitHub issue · jira_stub → canned PM line
+```
+
+### Import & configure (second workflow)
+Import `quorum.message.workflow.json` (separate from the #3 render workflow). Then:
+
+1. **Inbound: voice note** (Telegram Trigger) → assign a **listener bot** credential (use the **Orchestrator** bot; it's send-only in #3 so no conflict). Set:
+   - `Chat IDs` = your group id (the negative `-…` number from `getUpdates`)
+   - `User IDs` = **your** numeric Telegram user id (from `getUpdates`) — *this is the echo-loop guard; the bots never post under your id, so they can't re-trigger.* Comma-separate multiple human approvers.
+2. **Download voice** + **Transcribe (ElevenLabs STT)** → assign the **ElevenLabs** credential to the STT node. If the node shows a required **Model**, pick **Scribe v1**. (STT output transcript is read as `$json.text`; the emotion node also falls back to `transcription`/`transcript`.)
+3. **Read emotion (Valence adapter)** — Code heuristic maps the transcript → `{valence, arousal, label}` (hesitation words → stressed → the gate holds; confident words → calm → it ships). This is the **swappable Valence boundary**: replace the Code with a Valence HTTP call when its I/O is confirmed.
+4. **POST /session/message** → set the brain URL (`https://<ngrok>/session/message`) + `X-Webhook-Secret` if the brain uses one. `session_id` is hardcoded `inc_001` (single-incident demo).
+5. **Render nodes** (Resolve agent identity, Reply TTS, 5 Send bots) → configure **exactly like #3** (CHAT_ID + voices in Resolve; ElevenLabs cred on Reply TTS; each Send bot its credential).
+6. **Actuators:**
+   - **create_issue (GitHub)** → assign a **GitHub** credential + set `owner`/`repository` (e.g. a demo repo). Title/body come from the action.
+   - **rollback** + **jira_stub** → assign a Telegram bot credential + set the chat id (these are canned-message stubs; `rollback` is where a real NightOwl mitigate endpoint would go).
+
+### Test (against the mock)
+With #3's opening event played (room at `awaiting_approval`), **record a voice note in the group**:
+- *"uh… I guess, ship it"* (unsure) → STT → emotion gate → **Orchestrator holds**.
+- *"yes, ship it"* (steady) → status `acting` → **a real GitHub issue is created** + the jira-stub + rollback messages post.
+
+> **Echo-loop:** the listener-bot trigger is restricted by **your user id** (primary guard) plus an `is_bot != true` filter (defense-in-depth). Keep `User IDs` set.
+> **Known brain gaps handled here:** the brain doesn't emit `mitigated` and can re-emit actions — n8n owns the closing message and should fire actuators once per approval (don't send a second "ship it" in the same incident).
