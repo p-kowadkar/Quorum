@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-ink text-fg font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgba(37, 99, 235, 0.14);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  /* faint dotted grid for the dark demo panel */
+  .panel-grid {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+/* voice-note waveform bars */
+@keyframes wf {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.wf-bar {
+  transform-origin: bottom;
+  animation: wf 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .wf-bar {
+    animation: none;
+    transform: scaleY(0.5);
+  }
+}
