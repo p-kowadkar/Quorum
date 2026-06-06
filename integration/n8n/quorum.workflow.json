@@ -1,0 +1,171 @@
+{
+  "name": "Quorum — Render Pipeline (multi-bot: event to Telegram + voice)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "NightOwl Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "quorum-event",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quorum-event",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-map",
+      "name": "Map to Seam 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const item = $input.first().json; const b = item.body || item; const frames = ((b.exception && b.exception.stacktrace && b.exception.stacktrace.frames) || []).map(f => ({ file: f.filename || f.file || null, line: f.lineno || f.line || null, function: f.function || '<anonymous>' })); return [{ json: { session_id: null, source: 'nightowl', event_type: 'error', payload: { service: (b.context && b.context.service) || (b.tags && b.tags.service) || b.service || 'checkout-service', error_type: (b.exception && b.exception.type) || (b.tags && b.tags.error_type) || b.error_type || 'UnknownError', message: b.message || '', stack_frames: frames } } }];"
+      }
+    },
+    {
+      "id": "node-http-brain",
+      "name": "POST /session/event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [440, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-BRAIN-TUNNEL.ngrok-free.dev/session/event",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            { "name": "ngrok-skip-browser-warning", "value": "true" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-split",
+      "name": "Split Out turns",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [660, 300],
+      "parameters": {
+        "fieldToSplitOut": "turns",
+        "include": "noOtherFields",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-resolve",
+      "name": "Resolve agent identity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const BOTS = { orchestrator: { token: 'BOT_TOKEN_ORCHESTRATOR', voice: 'EL_VOICE_ORCH' }, rootcause: { token: 'BOT_TOKEN_ROOTCAUSE', voice: 'EL_VOICE_ROOT' }, coder: { token: 'BOT_TOKEN_CODER', voice: 'EL_VOICE_CODER' }, critic: { token: 'BOT_TOKEN_CRITIC', voice: 'EL_VOICE_CRITIC' }, pm: { token: 'BOT_TOKEN_PM', voice: 'EL_VOICE_PM' } }; const cfg = BOTS[$json.agent] || BOTS.orchestrator; return { json: Object.assign({}, $json, { botToken: cfg.token, voiceId: cfg.voice, chatId: CHAT_ID }) };"
+      }
+    },
+    {
+      "id": "node-tg-text",
+      "name": "Telegram text (per-bot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1100, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $json.botToken }}/sendMessage",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ chat_id: $json.chatId, text: $json.agent.toUpperCase() + ': ' + $json.text }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-eleven",
+      "name": "ElevenLabs TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1320, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $('Resolve agent identity').item.json.voiceId }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            { "name": "xi-api-key", "value": "YOUR_ELEVENLABS_API_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ text: $('Resolve agent identity').item.json.text, model_id: 'eleven_multilingual_v2', voice_settings: ({ stability: $('Resolve agent identity').item.json.delivery.stability, similarity_boost: 0.75, style: $('Resolve agent identity').item.json.delivery.style, use_speaker_boost: true }) }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "node-tg-voice",
+      "name": "Telegram voice (per-bot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1540, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $('Resolve agent identity').item.json.botToken }}/sendAudio",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $('Resolve agent identity').item.json.chatId }}" },
+            { "name": "title", "value": "={{ $('Resolve agent identity').item.json.agent }}" },
+            { "parameterType": "formBinaryData", "name": "audio", "inputDataFieldName": "data" }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "NightOwl Webhook": {
+      "main": [[ { "node": "Map to Seam 1", "type": "main", "index": 0 } ]]
+    },
+    "Map to Seam 1": {
+      "main": [[ { "node": "POST /session/event", "type": "main", "index": 0 } ]]
+    },
+    "POST /session/event": {
+      "main": [[ { "node": "Split Out turns", "type": "main", "index": 0 } ]]
+    },
+    "Split Out turns": {
+      "main": [[ { "node": "Resolve agent identity", "type": "main", "index": 0 } ]]
+    },
+    "Resolve agent identity": {
+      "main": [[ { "node": "Telegram text (per-bot)", "type": "main", "index": 0 } ]]
+    },
+    "Telegram text (per-bot)": {
+      "main": [[ { "node": "ElevenLabs TTS", "type": "main", "index": 0 } ]]
+    },
+    "ElevenLabs TTS": {
+      "main": [[ { "node": "Telegram voice (per-bot)", "type": "main", "index": 0 } ]]
+    }
+  }
+}
