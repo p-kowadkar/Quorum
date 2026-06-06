@@ -1,3 +1,4 @@
+import { AmbientField } from "./components/AmbientField";
 import { Footer } from "./components/Footer";
 import { Nav } from "./components/Nav";
 import { CTA } from "./sections/CTA";
@@ -10,18 +11,21 @@ import { Problem } from "./sections/Problem";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-ink">
-      <Nav />
-      <main>
-        <Hero />
-        <Problem />
-        <HowItWorks />
-        <Features />
-        <Patterns />
-        <Flow />
-        <CTA />
-      </main>
-      <Footer />
+    <div className="relative min-h-screen">
+      <AmbientField />
+      <div className="relative z-10">
+        <Nav />
+        <main>
+          <Hero />
+          <Problem />
+          <HowItWorks />
+          <Features />
+          <Patterns />
+          <Flow />
+          <CTA />
+        </main>
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export default {
         "panel-muted": "#9BA1AB",
       },
       fontFamily: {
-        display: ['"Space Grotesk"', "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Geist"', "ui-sans-serif", "system-ui", "sans-serif"],
         sans: ['"Geist"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"Geist Mono"', "ui-monospace", "SFMono-Regular", "monospace"],
       },

@@ -6,11 +6,12 @@ import {
   Scales,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { Chip } from "../components/ui/Chip";
 import { Reveal } from "../components/ui/Reveal";
 import { Section } from "../components/ui/Section";
-import { AGENTS, AGENT_ORDER, type AgentKey } from "../lib/theme";
+import { AGENTS, AGENT_ORDER, EASE_EXPO, type AgentKey } from "../lib/theme";
 
 const TITLE = "Five specialists. One shared blackboard.";
 const INTRO =
@@ -46,6 +47,51 @@ const AGENT_ICON_ARIA: Record<AgentKey, string> = {
   critic: "Scales icon",
   pm: "Clipboard icon",
 };
+
+// --- Living blackboard diagram -------------------------------------------------
+// One self-contained SVG (scales via viewBox) so the flow physically connects
+// each agent dot to the shared session node. Motion is layered only when motion
+// is allowed; the reduced-motion branch renders the same geometry, held still.
+
+const DIAGRAM = {
+  width: 620,
+  height: 208,
+  agentX: 92, // x of the agent dots
+  labelX: 104, // x where labels start
+  connectX: 234, // connectors start here — clear of the longest label
+  node: { x: 452, y: 60, w: 144, h: 88, r: 14 }, // session node rect
+} as const;
+
+const NODE_CX = DIAGRAM.node.x + DIAGRAM.node.w / 2;
+const NODE_CY = DIAGRAM.node.y + DIAGRAM.node.h / 2;
+const NODE_ENTRY_X = DIAGRAM.node.x; // left edge — where connectors land
+
+// Evenly spaced vertical anchors for the five agents.
+const AGENT_Y: Record<AgentKey, number> = AGENT_ORDER.reduce(
+  (acc, key, i) => {
+    const top = 26;
+    const gap = (DIAGRAM.height - top * 2) / (AGENT_ORDER.length - 1);
+    return { ...acc, [key]: top + i * gap };
+  },
+  {} as Record<AgentKey, number>,
+);
+
+// A gentle cubic that leaves the agent row (clear of the label text) and
+// converges into the left edge of the session node. A short horizontal "lead"
+// at the agent's y keeps the line visually anchored to its dot without crossing
+// the label glyphs.
+function connectorPath(y: number): string {
+  const x0 = DIAGRAM.connectX;
+  const x1 = NODE_ENTRY_X;
+  const cx = (x0 + x1) / 2;
+  return `M ${x0} ${y} C ${cx} ${y}, ${cx} ${NODE_CY}, ${x1} ${NODE_CY}`;
+}
+
+// Pulse cadence: one packet leaves an agent every PULSE_PERIOD, staggered so the
+// five never fire on the same beat (reads as a steady conversation, not a strobe).
+const PULSE_PERIOD = 2.6; // seconds per traveling pulse
+const PULSE_DASH = 14; // length of the lit "packet"
+const PULSE_GAP = 150; // dark space between packets (keeps one packet on the wire)
 
 export function HowItWorks() {
   return (
@@ -106,79 +152,321 @@ export function HowItWorks() {
             {BLACKBOARD_DESC}
           </p>
 
-          {/* Static diagram */}
-          <div
-            className="mt-8 flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-0"
-            aria-label="Diagram: five agents write to one shared blackboard"
-            role="img"
-          >
-            {/* Agent dots */}
-            <div className="flex flex-row flex-wrap justify-center gap-4 sm:flex-col sm:gap-3">
-              {AGENT_ORDER.map((key) => {
-                const agent = AGENTS[key];
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    <div
-                      className="h-3 w-3 flex-shrink-0 rounded-full"
-                      style={{ backgroundColor: agent.hex }}
-                      aria-hidden="true"
-                    />
-                    <span className="hidden font-mono text-xs text-muted sm:inline">
-                      {agent.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Connector lines — desktop horizontal, mobile vertical */}
-            <div
-              className="relative flex items-center justify-center sm:mx-8 sm:w-24"
-              aria-hidden="true"
-            >
-              {/* Horizontal lines on sm+ */}
-              <svg
-                className="hidden sm:block"
-                width="96"
-                height="92"
-                viewBox="0 0 96 92"
-                fill="none"
-              >
-                {/* 5 lines converging to right center */}
-                <line x1="0" y1="8" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="27" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="46" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="65" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="84" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <circle cx="80" cy="46" r="4" fill="#CBD5E1" />
-              </svg>
-              {/* Vertical arrow on mobile */}
-              <svg
-                className="block sm:hidden"
-                width="16"
-                height="36"
-                viewBox="0 0 16 36"
-                fill="none"
-              >
-                <line x1="8" y1="0" x2="8" y2="28" stroke="#CBD5E1" strokeWidth="1.5" strokeDasharray="3 3" />
-                <path d="M4 24l4 4 4-4" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-
-            {/* Blackboard node */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="rounded-card border border-line bg-fg/[0.04] px-5 py-3 text-center">
-                <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                  session
-                </p>
-                <p className="mt-0.5 font-mono text-[10px] text-muted/50">
-                  trace · hypotheses · patch · verdict
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Living diagram: five specialists flowing into one shared session */}
+          <BlackboardDiagram />
         </div>
       </Reveal>
     </Section>
+  );
+}
+
+function BlackboardDiagram() {
+  const reduce = useReducedMotion() ?? false;
+  return (
+    <div
+      className="mt-8"
+      role="img"
+      aria-label="Diagram: five specialist agents — Orchestrator, RootCause, Coder, Critic, and Project Manager — continuously read and write a single shared session blackboard."
+    >
+      {/* Desktop / tablet: one converging SVG that scales with the card */}
+      <div className="hidden sm:block">
+        <DiagramSvg reduce={reduce} />
+      </div>
+      {/* Mobile: stacked agents flowing down into the session node */}
+      <div className="block sm:hidden">
+        <DiagramStacked reduce={reduce} />
+      </div>
+    </div>
+  );
+}
+
+function DiagramSvg({ reduce }: { reduce: boolean }) {
+  return (
+    <svg
+      className="mx-auto block h-auto w-full max-w-[540px] overflow-visible"
+      viewBox={`0 0 ${DIAGRAM.width} ${DIAGRAM.height}`}
+      fill="none"
+      aria-hidden="true"
+    >
+      {/* connectors + traveling pulses */}
+      {AGENT_ORDER.map((key, i) => (
+        <Connector
+          key={key}
+          agentKey={key}
+          y={AGENT_Y[key]}
+          index={i}
+          reduce={reduce}
+        />
+      ))}
+
+      {/* agent dots + labels */}
+      {AGENT_ORDER.map((key, i) => (
+        <AgentNode
+          key={key}
+          agentKey={key}
+          y={AGENT_Y[key]}
+          index={i}
+          reduce={reduce}
+        />
+      ))}
+
+      {/* the shared session blackboard */}
+      <SessionNode reduce={reduce} />
+    </svg>
+  );
+}
+
+function Connector({
+  agentKey,
+  y,
+  index,
+  reduce,
+}: {
+  agentKey: AgentKey;
+  y: number;
+  index: number;
+  reduce: boolean;
+}) {
+  const d = connectorPath(y);
+  const hex = AGENTS[agentKey].hex;
+  return (
+    <g>
+      {/* faint static rail */}
+      <path
+        d={d}
+        stroke="#E2E5EA"
+        strokeWidth={1}
+        strokeDasharray="3 3"
+        fill="none"
+      />
+      {/* lit packet traveling agent -> session (seamless via periodic dash) */}
+      {reduce ? (
+        // held still: a single calm packet sitting on the rail
+        <path
+          d={d}
+          stroke={hex}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={`${PULSE_DASH} ${PULSE_GAP}`}
+          strokeDashoffset={-PULSE_GAP * 0.5}
+          fill="none"
+          opacity={0.7}
+        />
+      ) : (
+        <motion.path
+          d={d}
+          stroke={hex}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={`${PULSE_DASH} ${PULSE_GAP}`}
+          fill="none"
+          initial={{ strokeDashoffset: 0 }}
+          animate={{ strokeDashoffset: -(PULSE_DASH + PULSE_GAP) }}
+          transition={{
+            duration: PULSE_PERIOD,
+            ease: "linear",
+            repeat: Infinity,
+            delay: index * (PULSE_PERIOD / AGENT_ORDER.length),
+          }}
+        />
+      )}
+    </g>
+  );
+}
+
+function AgentNode({
+  agentKey,
+  y,
+  index,
+  reduce,
+}: {
+  agentKey: AgentKey;
+  y: number;
+  index: number;
+  reduce: boolean;
+}) {
+  const agent = AGENTS[agentKey];
+  return (
+    <g>
+      {/* soft halo that pulses as this agent posts to the board */}
+      {!reduce && (
+        <motion.circle
+          cx={DIAGRAM.agentX}
+          cy={y}
+          r={5}
+          fill={agent.hex}
+          initial={{ opacity: 0.18, scale: 1 }}
+          animate={{ opacity: [0.18, 0, 0.18], scale: [1, 2.4, 1] }}
+          transition={{
+            duration: PULSE_PERIOD,
+            ease: EASE_EXPO,
+            repeat: Infinity,
+            delay: index * (PULSE_PERIOD / AGENT_ORDER.length),
+          }}
+          style={{ transformOrigin: `${DIAGRAM.agentX}px ${y}px` }}
+        />
+      )}
+      <circle cx={DIAGRAM.agentX} cy={y} r={5} fill={agent.hex} />
+      <text
+        x={DIAGRAM.labelX}
+        y={y}
+        dominantBaseline="middle"
+        className="fill-muted font-mono"
+        style={{ fontSize: 12 }}
+      >
+        {agent.label}
+      </text>
+    </g>
+  );
+}
+
+function SessionNode({ reduce }: { reduce: boolean }) {
+  const { x, y, w, h, r } = DIAGRAM.node;
+  return (
+    <g>
+      {/* breathing glow ring */}
+      {!reduce && (
+        <motion.rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={r}
+          ry={r}
+          fill="none"
+          stroke="#0B0D12"
+          strokeWidth={1}
+          initial={{ opacity: 0.06, scale: 1 }}
+          animate={{ opacity: [0.05, 0.14, 0.05], scale: [1, 1.035, 1] }}
+          transition={{ duration: PULSE_PERIOD, ease: "easeInOut", repeat: Infinity }}
+          style={{ transformOrigin: `${NODE_CX}px ${NODE_CY}px` }}
+        />
+      )}
+      {/* node body */}
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        rx={r}
+        ry={r}
+        className="fill-fg/[0.04] stroke-line"
+        strokeWidth={1}
+      />
+      <text
+        x={NODE_CX}
+        y={NODE_CY - 8}
+        textAnchor="middle"
+        className="fill-muted font-mono"
+        style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.18em" }}
+      >
+        SESSION
+      </text>
+      <text
+        x={NODE_CX}
+        y={NODE_CY + 12}
+        textAnchor="middle"
+        className="fill-muted/50 font-mono"
+        style={{ fontSize: 9.5 }}
+      >
+        trace · hypotheses · patch · verdict
+      </text>
+    </g>
+  );
+}
+
+// Mobile: a clean vertical stack with one tasteful downward flow (not five).
+function DiagramStacked({ reduce }: { reduce: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-5">
+      <div className="flex flex-row flex-wrap justify-center gap-4">
+        {AGENT_ORDER.map((key) => (
+          <span key={key} className="flex items-center gap-2">
+            <span
+              className="h-3 w-3 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: AGENTS[key].hex }}
+              aria-hidden="true"
+            />
+          </span>
+        ))}
+      </div>
+
+      {/* one downward connector with a single traveling pulse */}
+      <svg
+        width="18"
+        height="44"
+        viewBox="0 0 18 44"
+        fill="none"
+        aria-hidden="true"
+      >
+        <line
+          x1="9"
+          y1="0"
+          x2="9"
+          y2="36"
+          stroke="#E2E5EA"
+          strokeWidth={1.5}
+          strokeDasharray="3 3"
+        />
+        {reduce ? (
+          <line
+            x1="9"
+            y1="6"
+            x2="9"
+            y2="20"
+            stroke="#5A6472"
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        ) : (
+          <motion.line
+            x1="9"
+            y1="0"
+            x2="9"
+            y2="36"
+            stroke="#5A6472"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeDasharray="10 40"
+            initial={{ strokeDashoffset: 0 }}
+            animate={{ strokeDashoffset: -50 }}
+            transition={{ duration: 1.8, ease: "linear", repeat: Infinity }}
+          />
+        )}
+        <path
+          d="M5 32l4 4 4-4"
+          stroke="#CBD5E1"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+
+      {/* session node */}
+      <motion.div
+        className="rounded-card border border-line bg-fg/[0.04] px-5 py-3 text-center"
+        animate={
+          reduce
+            ? undefined
+            : { boxShadow: [
+                "0 0 0 0 rgba(11,13,18,0)",
+                "0 0 0 6px rgba(11,13,18,0.04)",
+                "0 0 0 0 rgba(11,13,18,0)",
+              ] }
+        }
+        transition={
+          reduce
+            ? undefined
+            : { duration: 1.8, ease: "easeInOut", repeat: Infinity }
+        }
+      >
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+          session
+        </p>
+        <p className="mt-0.5 font-mono text-[10px] text-muted/50">
+          trace · hypotheses · patch · verdict
+        </p>
+      </motion.div>
+    </div>
   );
 }
