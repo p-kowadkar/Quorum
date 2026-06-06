@@ -1,12 +1,16 @@
 'use strict';
 // Quorum — Discord voice-call channel (Phase B1).
 // Incident → brain → agents speak the debate in the voice channel + caption in the text channel.
-// Approval (B1): the approver types in the text channel. (B2: by voice — see voiceReceive note in README.)
+// Approval: the approver can type in the text channel or speak in the voice channel.
 const express = require('express');
 const { Events } = require('discord.js');
 const config = require('./src/config');
 const brain = require('./src/brain');
 const discord = require('./src/discord');
+
+let roomClosed = false;
+let server = null;
+let shuttingDown = false;
 
 // Deterministic emotion read (swappable Valence boundary) — mirrors the n8n adapter.
 function readEmotion(text) {
@@ -27,11 +31,14 @@ async function fireActuators(actions) {
 }
 
 async function handleApproval(text) {
+  if (roomClosed) return;
   const res = await brain.message(text, readEmotion(text));
   await discord.renderTurns(res.turns);
   if (res.status === 'acting') {
+    roomClosed = true;
     await fireActuators(res.actions);
     await discord.sendCaption('orchestrator', 'Mitigated. Closing the room.');
+    await discord.leaveVoice();
   }
 }
 
@@ -45,6 +52,7 @@ const CANNED_INCIDENT = {
 async function main() {
   await discord.login();
   await discord.joinVoice();
+  discord.listenForApprovals(handleApproval);
 
   // B1 approval: listen for the approver typing in the text channel.
   discord.clients.orchestrator.on(Events.MessageCreate, async (msg) => {
@@ -67,7 +75,20 @@ async function main() {
       await discord.renderTurns(out.turns); // play after responding so the HTTP caller isn't blocked
     } catch (e) { console.error('[incident]', e); res.status(500).json({ ok: false, error: String(e) }); }
   });
-  app.listen(config.port, () => console.log(`[discord] incident intake on :${config.port} (POST /incident)`));
+  server = app.listen(config.port, () => console.log(`[discord] incident intake on :${config.port} (POST /incident)`));
 }
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[discord] shutting down (${signal})`);
+  if (server) server.close();
+  await discord.leaveVoice();
+  discord.destroyClients();
+  process.exit(0);
+}
+
+process.once('SIGINT', () => { void shutdown('SIGINT'); });
+process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 
 main().catch((e) => { console.error('fatal', e); process.exit(1); });

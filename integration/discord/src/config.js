@@ -32,6 +32,7 @@ module.exports = {
   brainSecret: process.env.BRAIN_WEBHOOK_SECRET || '',
   elevenKey: process.env.ELEVENLABS_API_KEY,
   elevenModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
+  elevenSttModel: process.env.ELEVENLABS_STT_MODEL || 'scribe_v2',
   port: parseInt(process.env.PORT || '8080', 10),
   sessionId: process.env.SESSION_ID || 'inc_001',
 };
