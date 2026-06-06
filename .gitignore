@@ -1,0 +1,83 @@
+# ──────────────────────────────────────────────────────────────
+#  Quorum — .gitignore
+#  Goal: never leak internal planning docs, secrets, or local
+#  tooling/config. Public deliverables stay tracked:
+#  README.md, LICENSE, contract/, brain/, integration/.
+# ──────────────────────────────────────────────────────────────
+
+# ── Internal planning / brainstorm docs (never publish) ──
+# *plan.md already catches quorum-build-plan.md; the rest are belt-and-suspenders.
+*plan.md
+*-plan.md
+*_plan.md
+*.plan.md
+*plan.txt
+quorum-build-plan.md
+plan.md
+PLAN.md
+/plans/
+/docs/internal/
+*.brainstorm.md
+*.scratch.md
+notes.md
+NOTES.md
+TODO.private.md
+
+# ── Secrets & environment ──
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.secret
+secrets/
+# Keep the template committed (must come AFTER .env.* above)
+!.env.example
+
+# n8n note: only commit credential-free workflow exports to integration/n8n/.
+
+# ── Claude Code / AI tooling (local config & agent artifacts) ──
+.claude/
+.cursor/
+.aider*
+*.local
+
+# ── Python (brain/) ──
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# ── Node / Vite (integration/nightowl) ──
+node_modules/
+dist/
+build/
+.vite/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Logs & temp ──
+*.log
+logs/
+tmp/
+*.tmp
+
+# ── OS & editor cruft ──
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
