@@ -43,7 +43,8 @@
         "specifyHeaders": "keypair",
         "headerParameters": {
           "parameters": [
-            { "name": "ngrok-skip-browser-warning", "value": "true" }
+            { "name": "ngrok-skip-browser-warning", "value": "true" },
+            { "name": "X-Webhook-Secret", "value": "YOUR_BRAIN_WEBHOOK_SECRET" }
           ]
         },
         "sendBody": true,
@@ -74,7 +75,7 @@
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const VOICES = { orchestrator: 'EL_VOICE_ORCH', rootcause: 'EL_VOICE_ROOT', coder: 'EL_VOICE_CODER', critic: 'EL_VOICE_CRITIC', pm: 'EL_VOICE_PM' }; const voiceId = VOICES[$json.agent] || VOICES.orchestrator; return { json: Object.assign({}, $json, { voiceId: voiceId, chatId: CHAT_ID }) };"
+        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const VOICES = { orchestrator: 'EL_VOICE_ORCH', rootcause: 'EL_VOICE_ROOT', coder: 'EL_VOICE_CODER', critic: 'EL_VOICE_CRITIC', pm: 'EL_VOICE_PM' }; const STYLE = { concerned: 0.65, calm: 0.30, methodical: 0.20, neutral: 0.30 }; const emo = $json.emotion || {}; const stability = (typeof emo.stability === 'number') ? emo.stability : 0.5; const style = (emo.style && STYLE[emo.style] != null) ? STYLE[emo.style] : 0.3; const voiceId = VOICES[$json.agent] || VOICES.orchestrator; return { json: Object.assign({}, $json, { voiceId: voiceId, chatId: CHAT_ID, voiceSettings: { stability: stability, similarity_boost: 0.75, style: style, use_speaker_boost: true } }) };"
       }
     },
     {
@@ -93,7 +94,7 @@
           "value": "={{ $json.voiceId }}"
         },
         "additionalOptions": {
-          "voiceSettings": "={{ JSON.stringify({ stability: $json.delivery.stability, similarity_boost: 0.75, style: $json.delivery.style, use_speaker_boost: true }) }}"
+          "voiceSettings": "={{ JSON.stringify($json.voiceSettings) }}"
         }
       }
     },

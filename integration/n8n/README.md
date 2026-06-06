@@ -33,7 +33,7 @@ NightOwl Webhook → Map to Seam 1 → POST /session/event (HTTP, our brain) →
 
 Import `quorum.workflow.json` (Workflows → ⋮ → Import from File). Then:
 
-1. **POST /session/event** → set URL to your tunnel `https://<ngrok>/session/event`. (The `ngrok-skip-browser-warning` header is already set.)
+1. **POST /session/event** → set URL to your tunnel `https://<ngrok>/session/event`. (The `ngrok-skip-browser-warning` header is already set.) If the brain runs with `BRAIN_WEBHOOK_SECRET` set, also set the pre-added `X-Webhook-Secret` header value to match — it's harmless when the brain has no secret.
 
 2. **Resolve agent identity** (Code node) → fill the map at the top:
    ```js
@@ -47,7 +47,7 @@ Import `quorum.workflow.json` (Workflows → ⋮ → Import from File). Then:
    };
    ```
 
-3. **ElevenLabs TTS** → assign your **ElevenLabs API** credential. (Voice, text, and `voiceSettings` are already expression-driven from each turn — model defaults to `eleven_multilingual_v2`.)
+3. **ElevenLabs TTS** → assign your **ElevenLabs API** credential. Voice, text, and `voiceSettings` are expression-driven per turn — the **Resolve agent identity** node maps the brain's `turn.emotion` (`{stability, style: "concerned"|"calm"|"methodical"}`) into ElevenLabs `voice_settings` floats (style label → number), defaulting to calm when a turn has no emotion. Model defaults to `eleven_multilingual_v2`.
 
 4. **Send: \<Agent\>** (×5) → assign **each node its matching bot credential** (the node names tell you which: *Send: Critic* → the Critic bot, etc.). Chat ID and caption are already wired.
 

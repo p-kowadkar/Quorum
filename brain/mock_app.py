@@ -54,14 +54,15 @@ class MessageIn(BaseModel):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-def turn(agent: str, text: str, *, stability: float = 0.55, style: float = 0.30,
+def turn(agent: str, text: str, *, emotion: dict | None = None,
          interrupts: bool = False) -> dict:
-    """Build a Seam 3 turn. `delivery` is ElevenLabs voice settings (NOT human emotion)."""
+    """Build a Seam 3 turn. `emotion` carries the agent's delivery hints
+    ({stability: float, style: label}); n8n maps it to ElevenLabs voice_settings."""
     return {
         "agent": agent,
         "text": text,
         "voice_id": VOICES[agent],
-        "delivery": {"stability": stability, "style": style},
+        "emotion": emotion or {},
         "interrupts": interrupts,
     }
 
@@ -82,15 +83,14 @@ def opening_turns() -> list[dict]:
              "Checkout's down — payment gateway timeout. RootCause, your read?"),
         turn("rootcause",
              "Trace points at the gateway call in processPayment timing out, not the database.",
-             stability=0.75, style=0.20),
+             emotion={"style": "methodical", "stability": 0.75}),
         turn("coder",
              "I'd wrap the gateway call in a configurable timeout with a real try/catch, "
-             "and let a clean success response through.",
-             stability=0.55, style=0.30),
+             "and let a clean success response through."),
         turn("critic",
              "Hold on — retrying a gateway that's already down just hammers it. But bounded by "
              "the timeout with a clean fallback, it's acceptable. Confidence 0.78.",
-             stability=0.40, style=0.55, interrupts=True),
+             emotion={"style": "concerned", "stability": 0.30}, interrupts=True),
         turn("orchestrator",
              "Critic cleared it at 0.78. Approve the rollback?"),
     ]
@@ -143,7 +143,7 @@ def on_message(m: MessageIn):
         return reply(m.session_id, "awaiting_approval", [
             turn("orchestrator",
                  "You don't sound sure about this. Want me to hold?",
-                 stability=0.30, style=0.65),
+                 emotion={"style": "concerned", "stability": 0.30}),
         ])
 
     # Already acting? Don't re-fire actions (idempotency).
