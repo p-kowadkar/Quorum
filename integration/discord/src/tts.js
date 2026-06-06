@@ -1,6 +1,5 @@
 'use strict';
-// ElevenLabs TTS → a Node Readable stream of MP3, ready for @discordjs/voice.
-const { Readable } = require('stream');
+// ElevenLabs TTS -> an MP3 buffer that the Discord voice layer probes/transcodes.
 const config = require('./config');
 
 // Maps the brain's agent delivery hint (emotion.{stability,style-label}) to ElevenLabs voice_settings.
@@ -24,7 +23,9 @@ async function synthesize(text, voiceId, emotion = {}) {
     }),
   });
   if (!res.ok) throw new Error(`ElevenLabs TTS ${res.status}: ${await res.text()}`);
-  return Readable.fromWeb(res.body); // web ReadableStream -> Node stream (Node 18+)
+  const audio = Buffer.from(await res.arrayBuffer());
+  if (audio.length === 0) throw new Error('ElevenLabs TTS returned empty audio');
+  return audio;
 }
 
 module.exports = { synthesize };

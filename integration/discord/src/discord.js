@@ -4,9 +4,10 @@
 const { ChannelType, Client, GatewayIntentBits, Events } = require('discord.js');
 const {
   joinVoiceChannel, createAudioPlayer, createAudioResource,
-  AudioPlayerStatus, EndBehaviorType, entersState, StreamType, VoiceConnectionStatus,
+  AudioPlayerStatus, EndBehaviorType, NoSubscriberBehavior, demuxProbe, entersState, VoiceConnectionStatus,
 } = require('@discordjs/voice');
 const prism = require('prism-media');
+const { Readable } = require('stream');
 const config = require('./config');
 const stt = require('./stt');
 const tts = require('./tts');
@@ -56,7 +57,11 @@ async function joinVoice() {
       selfDeaf: agent !== 'orchestrator', // Orchestrator stays open for future voice receive.
     });
     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-    const player = createAudioPlayer();
+    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
+    player.on('error', (error) => {
+      const text = error.resource && error.resource.metadata && error.resource.metadata.text;
+      console.error(`[discord] ${agent} audio player error: ${error.message}${text ? ` (${text})` : ''}`);
+    });
     connection.subscribe(player);
     connections[agent] = connection;
     players[agent] = player;
@@ -74,11 +79,18 @@ async function speak(turn) {
   const player = players[turn.agent] || players.orchestrator;
   if (!player) throw new Error(`no voice player for ${turn.agent}`);
   const voiceId = config.VOICES[turn.agent] || config.VOICES.orchestrator;
-  const stream = await tts.synthesize(turn.text, voiceId, turn.emotion || {});
-  const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
+  const audio = await tts.synthesize(turn.text, voiceId, turn.emotion || {});
+  console.log(`[discord] ${turn.agent} TTS bytes=${audio.length}`);
+  const probe = await demuxProbe(Readable.from(audio));
+  console.log(`[discord] ${turn.agent} audio stream type=${probe.type}`);
+  const resource = createAudioResource(probe.stream, {
+    inputType: probe.type,
+    metadata: { agent: turn.agent, text: turn.text },
+  });
   player.play(resource);
-  await entersState(player, AudioPlayerStatus.Playing, 10_000).catch(() => {});
+  await entersState(player, AudioPlayerStatus.Playing, 10_000);
   await entersState(player, AudioPlayerStatus.Idle, 5 * 60_000); // wait until this clip finishes
+  console.log(`[discord] ${turn.agent} playback done`);
 }
 
 async function leaveVoice() {
