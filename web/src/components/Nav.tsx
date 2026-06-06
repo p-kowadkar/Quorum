@@ -1,7 +1,6 @@
 import { UsersThree } from "@phosphor-icons/react";
 
 import { SITE } from "../lib/site";
-import { Button } from "./ui/Button";
 import { Container } from "./ui/Container";
 
 const LINKS = [
@@ -39,8 +38,6 @@ export function Nav() {
             </a>
           ))}
         </nav>
-
-        <Button href={SITE.telegramUrl}>Try in Telegram</Button>
       </Container>
     </header>
   );

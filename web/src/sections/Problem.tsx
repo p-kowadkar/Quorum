@@ -95,7 +95,7 @@ export function Problem() {
               <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-muted/60">
                 quorum
               </p>
-              <p className="mt-1 font-mono text-[11px] text-muted/40">4 specialists, one verdict</p>
+              <p className="mt-1 font-mono text-[11px] text-muted/40">5 specialists, one verdict</p>
             </div>
             {/* Active debate bubbles */}
             <div className="flex w-56 flex-col gap-1.5">

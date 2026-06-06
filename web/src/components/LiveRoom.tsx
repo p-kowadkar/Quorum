@@ -2,7 +2,14 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Microphone } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
-import { AGENTS, EASE_EXPO, STATUS, type AgentKey } from "../lib/theme";
+import {
+  AGENTS,
+  EASE_EXPO,
+  STATUS,
+  STREAM_FIRST_DELAY,
+  STREAM_STEP_DELAY,
+  type AgentKey,
+} from "../lib/theme";
 import { Waveform } from "./Waveform";
 
 type AgentLine = {
@@ -52,12 +59,14 @@ const SCRIPT: Line[] = [
     key: "orchestrator",
     text: "Rolling back. Issue filed.",
   },
+  {
+    side: "agent",
+    key: "pm",
+    text: "Ticket QUO-142 created. Assigned to you.",
+  },
 ];
 
-// Timing (ms) for the streamed playback.
-const FIRST_DELAY = 600;
-const STEP_DELAY = 1500;
-const LOOP_PAUSE = 4200;
+const LOOP_PAUSE = 4200; // ms to hold the resolved state before replaying
 
 function AgentMessage({ line }: { line: AgentLine }) {
   const agent = AGENTS[line.key];
@@ -166,7 +175,8 @@ function StatusChip({ mitigated }: { mitigated: boolean }) {
   );
 }
 
-const STATUS_FLIP_INDEX = SCRIPT.length - 1; // final orchestrator line
+// status flips on the orchestrator "Rolling back" line — second to last (PM closes out).
+const STATUS_FLIP_INDEX = SCRIPT.length - 2;
 
 function Panel({
   children,
@@ -206,14 +216,17 @@ export function LiveRoom() {
       setCount(0);
       SCRIPT.forEach((_, i) => {
         timers.current.push(
-          window.setTimeout(() => setCount(i + 1), FIRST_DELAY + i * STEP_DELAY),
+          window.setTimeout(
+            () => setCount(i + 1),
+            STREAM_FIRST_DELAY + i * STREAM_STEP_DELAY,
+          ),
         );
       });
       // schedule the loop restart after the last line + pause
       timers.current.push(
         window.setTimeout(
           run,
-          FIRST_DELAY + SCRIPT.length * STEP_DELAY + LOOP_PAUSE,
+          STREAM_FIRST_DELAY + SCRIPT.length * STREAM_STEP_DELAY + LOOP_PAUSE,
         ),
       );
     };

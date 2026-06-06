@@ -1,7 +1,8 @@
 import {
   Broadcast,
-  MagnifyingGlass,
+  ClipboardText,
   Code,
+  MagnifyingGlass,
   Scales,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
@@ -11,7 +12,7 @@ import { Reveal } from "../components/ui/Reveal";
 import { Section } from "../components/ui/Section";
 import { AGENTS, AGENT_ORDER, type AgentKey } from "../lib/theme";
 
-const TITLE = "Four specialists. One shared blackboard.";
+const TITLE = "Five specialists. One shared blackboard.";
 const INTRO =
   "Each agent has a distinct job and a distinct voice. " +
   "They read the same session object — the incident trace, prior hypotheses, draft patches — " +
@@ -27,6 +28,7 @@ const MODEL_TIER: Record<AgentKey, string> = {
   rootcause: "smart",
   coder: "smart",
   critic: "smart",
+  pm: "cheap",
 };
 
 const AGENT_ICONS: Record<AgentKey, Icon> = {
@@ -34,6 +36,7 @@ const AGENT_ICONS: Record<AgentKey, Icon> = {
   rootcause: MagnifyingGlass,
   coder: Code,
   critic: Scales,
+  pm: ClipboardText,
 };
 
 const AGENT_ICON_ARIA: Record<AgentKey, string> = {
@@ -41,6 +44,7 @@ const AGENT_ICON_ARIA: Record<AgentKey, string> = {
   rootcause: "Magnifying glass icon",
   coder: "Code brackets icon",
   critic: "Scales icon",
+  pm: "Clipboard icon",
 };
 
 export function HowItWorks() {
@@ -48,7 +52,7 @@ export function HowItWorks() {
     <Section id="how" kicker="the cast" title={TITLE} intro={INTRO}>
       {/* Agent cards grid */}
       <div
-        className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5"
         role="list"
         aria-label="Quorum specialist agents"
       >
@@ -58,7 +62,7 @@ export function HowItWorks() {
           return (
             <Reveal key={key} delay={i * 0.08} y={14}>
               <article
-                className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 transition-shadow duration-200 hover:shadow-card"
+                className="flex h-full flex-col gap-4 rounded-card border border-line bg-surface p-5 transition-shadow duration-200 hover:shadow-card"
                 role="listitem"
               >
                 {/* Icon */}
@@ -93,7 +97,7 @@ export function HowItWorks() {
       </div>
 
       {/* Blackboard diagram + explainer */}
-      <Reveal delay={0.38}>
+      <Reveal delay={0.4}>
         <div className="mt-14 rounded-card border border-line bg-surface p-8">
           <h3 className="font-display text-lg font-semibold tracking-tightish text-fg">
             The blackboard
@@ -105,11 +109,11 @@ export function HowItWorks() {
           {/* Static diagram */}
           <div
             className="mt-8 flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-0"
-            aria-label="Diagram: four agents write to one shared blackboard"
+            aria-label="Diagram: five agents write to one shared blackboard"
             role="img"
           >
             {/* Agent dots */}
-            <div className="flex flex-row gap-4 sm:flex-col sm:gap-3">
+            <div className="flex flex-row flex-wrap justify-center gap-4 sm:flex-col sm:gap-3">
               {AGENT_ORDER.map((key) => {
                 const agent = AGENTS[key];
                 return (
@@ -136,16 +140,17 @@ export function HowItWorks() {
               <svg
                 className="hidden sm:block"
                 width="96"
-                height="80"
-                viewBox="0 0 96 80"
+                height="92"
+                viewBox="0 0 96 92"
                 fill="none"
               >
-                {/* 4 lines converging to right center */}
-                <line x1="0" y1="10" x2="80" y2="40" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="27" x2="80" y2="40" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="53" x2="80" y2="40" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="70" x2="80" y2="40" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
-                <circle cx="80" cy="40" r="4" fill="#CBD5E1" />
+                {/* 5 lines converging to right center */}
+                <line x1="0" y1="8" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="0" y1="27" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="0" y1="46" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="0" y1="65" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="0" y1="84" x2="80" y2="46" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+                <circle cx="80" cy="46" r="4" fill="#CBD5E1" />
               </svg>
               {/* Vertical arrow on mobile */}
               <svg

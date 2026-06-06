@@ -1,4 +1,4 @@
-import { TelegramLogo, GithubLogo } from "@phosphor-icons/react";
+import { GithubLogo } from "@phosphor-icons/react";
 
 import { Button } from "../components/ui/Button";
 import { Container } from "../components/ui/Container";
@@ -35,18 +35,14 @@ export function CTA() {
 
             <Reveal delay={0.08}>
               <p className="mt-6 max-w-lg text-base leading-relaxed text-panel-muted">
-                Quorum lives in Telegram — not a SaaS dashboard you brief your team on. When an
-                alert fires, the agents are already in the room your engineers check first.
+                Quorum lives in Telegram — not a SaaS dashboard you brief your team on.
+                When an alert fires, the agents are already in the room your engineers
+                check first.
               </p>
             </Reveal>
 
             <Reveal delay={0.16}>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <Button href={SITE.telegramUrl} variant="primary">
-                  <TelegramLogo size={16} weight="duotone" aria-hidden="true" />
-                  Try it in Telegram
-                  <span className="sr-only">(opens in new tab)</span>
-                </Button>
                 <Button href={SITE.githubUrl} variant="ghost">
                   <GithubLogo size={16} weight="duotone" aria-hidden="true" />
                   View the source

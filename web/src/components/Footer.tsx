@@ -1,4 +1,4 @@
-import { GithubLogo, TelegramLogo } from "@phosphor-icons/react";
+import { GithubLogo } from "@phosphor-icons/react";
 
 import { Container } from "./ui/Container";
 import { SITE } from "../lib/site";
@@ -52,15 +52,6 @@ export function Footer() {
               aria-label="Quorum on GitHub (opens in new tab)"
             >
               <GithubLogo size={20} weight="duotone" aria-hidden="true" />
-            </a>
-            <a
-              href={SITE.telegramUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted transition-colors duration-150 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve/40 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
-              aria-label="Quorum on Telegram (opens in new tab)"
-            >
-              <TelegramLogo size={20} weight="duotone" aria-hidden="true" />
             </a>
           </div>
         </div>
