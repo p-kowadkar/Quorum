@@ -5,7 +5,7 @@ import { LiveRoom } from "../components/LiveRoom";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { Container } from "../components/ui/Container";
-import { EASE_EXPO, STREAM_FIRST_DELAY, STREAM_STEP_DELAY } from "../lib/theme";
+import { EASE_EXPO } from "../lib/theme";
 
 const COPY = {
   kicker: "for on-call engineers",
@@ -16,28 +16,33 @@ const COPY = {
   detail: "text + voice notes · no dashboards · approve by voice",
 } as const;
 
-// Reveal that lands on the same beat as the chat messages streaming on the right.
+// The headline and the chat pane share a beat (HEADLINE); supporting copy
+// follows in a quick, restrained stagger.
+const BEAT = {
+  kicker: 0.08,
+  headline: 0.18,
+  sub: 0.42,
+  cta: 0.58,
+  detail: 0.72,
+} as const;
+
 function Beat({
-  index = 0,
-  delaySec,
+  delaySec = 0,
   className = "",
   children,
 }: {
-  index?: number;
   delaySec?: number;
   className?: string;
   children: ReactNode;
 }) {
   const reduce = useReducedMotion();
   if (reduce) return <div className={className}>{children}</div>;
-  const delay =
-    delaySec ?? (STREAM_FIRST_DELAY + index * STREAM_STEP_DELAY) / 1000;
   return (
     <motion.div
       className={className}
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.55, ease: EASE_EXPO }}
+      transition={{ delay: delaySec, duration: 0.55, ease: EASE_EXPO }}
     >
       {children}
     </motion.div>
@@ -49,11 +54,11 @@ export function Hero() {
     <section id="top" className="relative scroll-mt-16">
       <Container className="grid min-h-[calc(100svh-4rem)] items-center gap-14 py-16 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-24">
         <div className="max-w-xl">
-          <Beat index={0}>
+          <Beat delaySec={BEAT.kicker}>
             <Chip tone="neutral">{COPY.kicker}</Chip>
           </Beat>
 
-          <Beat index={1}>
+          <Beat delaySec={BEAT.headline}>
             <h1 className="mt-6 font-display text-5xl font-semibold leading-[1.04] tracking-tighter2 text-fg sm:text-6xl lg:text-7xl">
               {COPY.headlineTop}
               <br />
@@ -61,13 +66,13 @@ export function Hero() {
             </h1>
           </Beat>
 
-          <Beat index={2}>
+          <Beat delaySec={BEAT.sub}>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">
               {COPY.sub}
             </p>
           </Beat>
 
-          <Beat index={3}>
+          <Beat delaySec={BEAT.cta}>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button variant="ghost" href="#how">
                 {COPY.secondary}
@@ -75,14 +80,15 @@ export function Hero() {
             </div>
           </Beat>
 
-          <Beat index={4}>
+          <Beat delaySec={BEAT.detail}>
             <p className="mt-8 font-mono text-xs tracking-tightish text-muted">
               {COPY.detail}
             </p>
           </Beat>
         </div>
 
-        <Beat delaySec={0.15} className="lg:pl-4">
+        {/* same beat as the headline — they arrive together */}
+        <Beat delaySec={BEAT.headline} className="lg:pl-4">
           <LiveRoom />
         </Beat>
       </Container>
