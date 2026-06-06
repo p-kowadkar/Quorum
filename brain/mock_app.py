@@ -146,9 +146,14 @@ def on_message(m: MessageIn):
                  emotion={"style": "concerned", "stability": 0.30}),
         ])
 
-    # Already acting? Don't re-fire actions (idempotency).
+    # Already acting? Don't re-fire actions (idempotency) — but still speak, so n8n
+    # renders a reply instead of silently stopping on an empty turns[] array.
     if session.get("status") == "acting":
-        return reply(m.session_id, "acting", [])
+        return reply(m.session_id, "acting", [
+            turn("orchestrator",
+                 "That's already shipped — this incident is closed. "
+                 "Trigger a new incident to run the room again."),
+        ])
 
     # Approve + sounds sure → act, emit actions exactly once.
     session["status"] = "acting"
