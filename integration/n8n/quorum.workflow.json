@@ -1,5 +1,5 @@
 {
-  "name": "Quorum — Render Pipeline (multi-bot: event to Telegram + voice)",
+  "name": "Quorum — Render Pipeline (native, multi-bot)",
   "active": false,
   "settings": { "executionOrder": "v1" },
   "pinData": {},
@@ -9,7 +9,7 @@
       "name": "NightOwl Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 300],
+      "position": [0, 380],
       "webhookId": "quorum-event",
       "parameters": {
         "httpMethod": "POST",
@@ -23,7 +23,7 @@
       "name": "Map to Seam 1",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [220, 300],
+      "position": [220, 380],
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
@@ -35,7 +35,7 @@
       "name": "POST /session/event",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [440, 300],
+      "position": [440, 380],
       "parameters": {
         "method": "POST",
         "url": "https://YOUR-BRAIN-TUNNEL.ngrok-free.dev/session/event",
@@ -58,7 +58,7 @@
       "name": "Split Out turns",
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
-      "position": [660, 300],
+      "position": [660, 380],
       "parameters": {
         "fieldToSplitOut": "turns",
         "include": "noOtherFields",
@@ -70,102 +70,153 @@
       "name": "Resolve agent identity",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300],
+      "position": [880, 380],
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const BOTS = { orchestrator: { token: 'BOT_TOKEN_ORCHESTRATOR', voice: 'EL_VOICE_ORCH' }, rootcause: { token: 'BOT_TOKEN_ROOTCAUSE', voice: 'EL_VOICE_ROOT' }, coder: { token: 'BOT_TOKEN_CODER', voice: 'EL_VOICE_CODER' }, critic: { token: 'BOT_TOKEN_CRITIC', voice: 'EL_VOICE_CRITIC' }, pm: { token: 'BOT_TOKEN_PM', voice: 'EL_VOICE_PM' } }; const cfg = BOTS[$json.agent] || BOTS.orchestrator; return { json: Object.assign({}, $json, { botToken: cfg.token, voiceId: cfg.voice, chatId: CHAT_ID }) };"
-      }
-    },
-    {
-      "id": "node-tg-text",
-      "name": "Telegram text (per-bot)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [1100, 180],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $json.botToken }}/sendMessage",
-        "sendBody": true,
-        "contentType": "json",
-        "specifyBody": "json",
-        "jsonBody": "={{ ({ chat_id: $json.chatId, text: $json.agent.toUpperCase() + ': ' + $json.text }) }}",
-        "options": {}
+        "jsCode": "const CHAT_ID = 'YOUR_TELEGRAM_GROUP_CHAT_ID'; const VOICES = { orchestrator: 'EL_VOICE_ORCH', rootcause: 'EL_VOICE_ROOT', coder: 'EL_VOICE_CODER', critic: 'EL_VOICE_CRITIC', pm: 'EL_VOICE_PM' }; const voiceId = VOICES[$json.agent] || VOICES.orchestrator; return { json: Object.assign({}, $json, { voiceId: voiceId, chatId: CHAT_ID }) };"
       }
     },
     {
       "id": "node-eleven",
       "name": "ElevenLabs TTS",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [1320, 180],
+      "type": "@elevenlabs/n8n-nodes-elevenlabs.elevenLabs",
+      "typeVersion": 1,
+      "position": [1100, 380],
       "parameters": {
-        "method": "POST",
-        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $('Resolve agent identity').item.json.voiceId }}",
-        "sendHeaders": true,
-        "specifyHeaders": "keypair",
-        "headerParameters": {
-          "parameters": [
-            { "name": "xi-api-key", "value": "YOUR_ELEVENLABS_API_KEY" }
-          ]
+        "resource": "speech",
+        "operation": "textToSpeech",
+        "text": "={{ $json.text }}",
+        "voice": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.voiceId }}"
         },
-        "sendBody": true,
-        "contentType": "json",
-        "specifyBody": "json",
-        "jsonBody": "={{ ({ text: $('Resolve agent identity').item.json.text, model_id: 'eleven_multilingual_v2', voice_settings: ({ stability: $('Resolve agent identity').item.json.delivery.stability, similarity_boost: 0.75, style: $('Resolve agent identity').item.json.delivery.style, use_speaker_boost: true }) }) }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
-            }
-          }
+        "additionalOptions": {
+          "voiceSettings": "={{ JSON.stringify({ stability: $json.delivery.stability, similarity_boost: 0.75, style: $json.delivery.style, use_speaker_boost: true }) }}"
         }
       }
     },
     {
-      "id": "node-tg-voice",
-      "name": "Telegram voice (per-bot)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [1540, 180],
+      "id": "node-switch",
+      "name": "Route by agent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [1320, 380],
       "parameters": {
-        "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $('Resolve agent identity').item.json.botToken }}/sendAudio",
-        "sendBody": true,
-        "contentType": "multipart-form-data",
-        "bodyParameters": {
-          "parameters": [
-            { "name": "chat_id", "value": "={{ $('Resolve agent identity').item.json.chatId }}" },
-            { "name": "title", "value": "={{ $('Resolve agent identity').item.json.agent }}" },
-            { "parameterType": "formBinaryData", "name": "audio", "inputDataFieldName": "data" }
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "r-orch", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "orchestrator", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "orchestrator" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "r-root", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "rootcause", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "rootcause" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "r-coder", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "coder", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "coder" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "r-critic", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "critic", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "critic" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "conditions": [ { "id": "r-pm", "leftValue": "={{ $('Resolve agent identity').item.json.agent }}", "rightValue": "pm", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "pm" }
           ]
         },
-        "options": {}
+        "options": { "looseTypeValidation": true }
+      }
+    },
+    {
+      "id": "node-send-orch",
+      "name": "Send: Orchestrator",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 80],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Resolve agent identity').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}"
+        }
+      }
+    },
+    {
+      "id": "node-send-root",
+      "name": "Send: RootCause",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 230],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Resolve agent identity').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}"
+        }
+      }
+    },
+    {
+      "id": "node-send-coder",
+      "name": "Send: Coder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 380],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Resolve agent identity').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}"
+        }
+      }
+    },
+    {
+      "id": "node-send-critic",
+      "name": "Send: Critic",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 530],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Resolve agent identity').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}"
+        }
+      }
+    },
+    {
+      "id": "node-send-pm",
+      "name": "Send: PM",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 680],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Resolve agent identity').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ $('Resolve agent identity').item.json.agent.toUpperCase() + ': ' + $('Resolve agent identity').item.json.text }}"
+        }
       }
     }
   ],
   "connections": {
-    "NightOwl Webhook": {
-      "main": [[ { "node": "Map to Seam 1", "type": "main", "index": 0 } ]]
-    },
-    "Map to Seam 1": {
-      "main": [[ { "node": "POST /session/event", "type": "main", "index": 0 } ]]
-    },
-    "POST /session/event": {
-      "main": [[ { "node": "Split Out turns", "type": "main", "index": 0 } ]]
-    },
-    "Split Out turns": {
-      "main": [[ { "node": "Resolve agent identity", "type": "main", "index": 0 } ]]
-    },
-    "Resolve agent identity": {
-      "main": [[ { "node": "Telegram text (per-bot)", "type": "main", "index": 0 } ]]
-    },
-    "Telegram text (per-bot)": {
-      "main": [[ { "node": "ElevenLabs TTS", "type": "main", "index": 0 } ]]
-    },
-    "ElevenLabs TTS": {
-      "main": [[ { "node": "Telegram voice (per-bot)", "type": "main", "index": 0 } ]]
+    "NightOwl Webhook": { "main": [[ { "node": "Map to Seam 1", "type": "main", "index": 0 } ]] },
+    "Map to Seam 1": { "main": [[ { "node": "POST /session/event", "type": "main", "index": 0 } ]] },
+    "POST /session/event": { "main": [[ { "node": "Split Out turns", "type": "main", "index": 0 } ]] },
+    "Split Out turns": { "main": [[ { "node": "Resolve agent identity", "type": "main", "index": 0 } ]] },
+    "Resolve agent identity": { "main": [[ { "node": "ElevenLabs TTS", "type": "main", "index": 0 } ]] },
+    "ElevenLabs TTS": { "main": [[ { "node": "Route by agent", "type": "main", "index": 0 } ]] },
+    "Route by agent": {
+      "main": [
+        [ { "node": "Send: Orchestrator", "type": "main", "index": 0 } ],
+        [ { "node": "Send: RootCause", "type": "main", "index": 0 } ],
+        [ { "node": "Send: Coder", "type": "main", "index": 0 } ],
+        [ { "node": "Send: Critic", "type": "main", "index": 0 } ],
+        [ { "node": "Send: PM", "type": "main", "index": 0 } ]
+      ]
     }
   }
 }

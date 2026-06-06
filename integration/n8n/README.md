@@ -1,64 +1,61 @@
-# n8n — Quorum render pipeline (Issue #3, multi-bot)
+# n8n — Quorum render pipeline (Issue #3, native multi-bot)
 
-Catches an incident, calls the brain, and renders every turn to your Telegram group as a **text bubble + ElevenLabs voice note** — where **each agent posts as its own bot** (its own name + avatar in the group).
+Catches an incident, calls the brain, and renders every turn to your Telegram group as a **voice note with the agent's line as caption** — where **each agent posts as its own bot** (its own name + avatar). Built on **native n8n nodes**: the official ElevenLabs node for TTS and the native Telegram node per bot. The only HTTP Request is the call to our own brain API (no dedicated node exists for it).
 
 ```
-NightOwl Webhook → Map to Seam 1 → POST /session/event → Split Out turns
-  → Resolve agent identity   (agent → {bot token, voice id, chat id})
-  → Telegram text  (raw Bot API, per-agent token)
-  → ElevenLabs TTS (per-agent voice)
-  → Telegram voice (raw Bot API sendAudio, per-agent token)
+NightOwl Webhook → Map to Seam 1 → POST /session/event (HTTP, our brain) → Split Out turns
+  → Resolve agent identity   (Code: agent → {voiceId, chatId})
+  → ElevenLabs TTS           (official node; voice + delivery settings → audio binary "data")
+  → Route by agent (Switch)  → Send: Orchestrator / RootCause / Coder / Critic / PM
+                               (native Telegram sendAudio, one per bot credential, caption = the line)
 ```
 
-**Multi-bot routing:** an n8n Telegram node binds one credential, so instead we call the Telegram Bot API directly via HTTP Request nodes and pick the **bot token per turn** from a single map in the **Resolve agent identity** node. One node holds all the secrets; the send nodes are generic.
+**Why a Switch + 5 send nodes:** a native Telegram node binds one credential, so multi-bot = route each turn to the node bound to that agent's bot. TTS runs once (voice is per-item), so it isn't duplicated.
 
-Verified against n8n's real node schemas (multipart binary upload, JSON-body expressions, Code return shapes, webhook execution) — import-ready.
+## Prerequisites
 
----
+1. **Install the official ElevenLabs node** — `@elevenlabs/n8n-nodes-elevenlabs` (Settings → Community nodes → Install). ✅ *(done)*
+2. **ElevenLabs API credential** — create one (`ElevenLabs API`) with your key.
+3. **5 Telegram bot credentials** — one per agent. In `@BotFather`, `/newbot` ×5; create a `Telegram API` credential per token. Suggested bots:
 
-## Prerequisites (gather first)
+   | Bot | Agent key | Assign to node |
+   |---|---|---|
+   | Quorum Orchestrator | `orchestrator` | Send: Orchestrator |
+   | Quorum RootCause | `rootcause` | Send: RootCause |
+   | Quorum Coder | `coder` | Send: Coder |
+   | Quorum Critic | `critic` | Send: Critic |
+   | Quorum PM | `pm` | Send: PM |
 
-1. **5 Telegram bots** — in `@BotFather`, `/newbot` ×5. Suggested names/avatars:
+4. **Add all 5 bots to the same group**; post `/start@each_bot` once. Grab the **group chat ID** (`-100…`) via `https://api.telegram.org/bot<ANY_TOKEN>/getUpdates`.
+5. **5 ElevenLabs voice IDs** (Voices page, or the ElevenLabs node's *Voice → From list*).
 
-   | Bot | Agent key |
-   |---|---|
-   | Quorum Orchestrator | `orchestrator` |
-   | Quorum RootCause | `rootcause` |
-   | Quorum Coder | `coder` |
-   | Quorum Critic | `critic` |
-   | Quorum PM | `pm` |
+## Import & configure
 
-2. **Add all 5 bots to the same group.** Post `/start@each_bot` once so each registers an update.
-3. **Group chat ID** (`-100…`) — `https://api.telegram.org/bot<ANY_TOKEN>/getUpdates` → `result[].message.chat.id`.
-4. **ElevenLabs**: one API key + **5 voice IDs** (Voices page, or `GET https://api.elevenlabs.io/v1/voices`).
+Import `quorum.workflow.json` (Workflows → ⋮ → Import from File). Then:
 
-## Import
+1. **POST /session/event** → set URL to your tunnel `https://<ngrok>/session/event`. (The `ngrok-skip-browser-warning` header is already set.)
 
-n8n cloud → **Workflows → ⋮ → Import from File** → `quorum.workflow.json`. Imports inactive.
-
-## Configure (3 places)
-
-1. **Brain URL** — open **POST /session/event** → set URL to your tunnel `https://<ngrok>/session/event`. (The `ngrok-skip-browser-warning` header is already set.)
-
-2. **Resolve agent identity** (the one node that holds everything) — open it and fill the map at the top of the code:
+2. **Resolve agent identity** (Code node) → fill the map at the top:
    ```js
-   const CHAT_ID = '-1001234567890';            // your group chat id
-   const BOTS = {
-     orchestrator: { token: '<orch bot token>',   voice: '<EL voice id>' },
-     rootcause:    { token: '<rootcause token>',   voice: '<EL voice id>' },
-     coder:        { token: '<coder token>',       voice: '<EL voice id>' },
-     critic:       { token: '<critic token>',      voice: '<EL voice id>' },
-     pm:           { token: '<pm token>',          voice: '<EL voice id>' },
+   const CHAT_ID = '-1001234567890';        // your group chat id
+   const VOICES = {
+     orchestrator: '<EL voice id>',
+     rootcause:    '<EL voice id>',
+     coder:        '<EL voice id>',
+     critic:       '<EL voice id>',
+     pm:           '<EL voice id>',
    };
    ```
 
-3. **ElevenLabs key** — open **ElevenLabs TTS** → set the `xi-api-key` header value. (Model is `eleven_multilingual_v2`; swap to `eleven_turbo_v2_5` for lower latency.)
+3. **ElevenLabs TTS** → assign your **ElevenLabs API** credential. (Voice, text, and `voiceSettings` are already expression-driven from each turn — model defaults to `eleven_multilingual_v2`.)
 
-> **Keep real tokens in your n8n copy only.** The repo file stays as placeholders (`BOT_TOKEN_*`, `YOUR_*`) so nothing leaks. Don't paste secrets into the working-tree file.
+4. **Send: \<Agent\>** (×5) → assign **each node its matching bot credential** (the node names tell you which: *Send: Critic* → the Critic bot, etc.). Chat ID and caption are already wired.
 
-## Test (text first, then voice)
+> Keep real tokens/keys in n8n only. The repo file stays placeholder-only (`EL_VOICE_*`, `YOUR_*`) so nothing leaks.
 
-1. Double-click **NightOwl Webhook** → copy **Test URL** → click **Execute workflow** → POST the sample payload below to the Test URL.
+## Test
+
+NightOwl Webhook → copy **Test URL** → click **Execute workflow** → POST the sample payload:
 
 ```powershell
 $payload = @{
@@ -69,12 +66,12 @@ $payload = @{
 Invoke-RestMethod -Uri "PASTE_TEST_URL_HERE" -Method Post -ContentType "application/json" -Body $payload
 ```
 
-✅ **Expected:** 5 text bubbles, each from a **different bot** (Orchestrator → RootCause → Coder → Critic → Orchestrator), then 5 voice notes in matching order with that agent's voice. If the **ElevenLabs TTS** node errors before you've set the key/voices, the text bubbles already prove the multi-bot loop.
+✅ **Expected:** 5 voice notes in turn order (Orchestrator → RootCause → Coder → Critic → Orchestrator), **each from a different bot**, each captioned with the agent's line, each in that agent's distinct voice.
 
-> Use `/webhook-test/quorum-event` while "listening for test event"; `/webhook/quorum-event` once **Published**.
+> `/webhook-test/quorum-event` while "listening for test event"; `/webhook/quorum-event` once **Published**.
 
 ## Notes & next
 
-- **Security:** the ElevenLabs key sits in a node header for import simplicity; switch it to a *Header Auth* credential for anything shared.
-- **#4 extends this** with a Telegram Trigger → transcribe → Valence → `POST /session/message`, plus actuators on `status == acting`.
-- **Cast/agent keys** come from the brain (`orchestrator|rootcause|coder|critic|pm`); to add/rename a specialist, add one line to the `BOTS` map.
+- **All native** except the brain call (custom FastAPI → HTTP is correct). ElevenLabs = official node; Telegram = native; (OpenRouter/Firecrawl native too, for later steps).
+- **#4 extends this** with a **Telegram Trigger** → **ElevenLabs Speech-to-Text** → Valence → `POST /session/message`, plus actuators (native **GitHub** node for `create_issue`, native Telegram for the `jira_stub` line, HTTP to NightOwl's mitigate endpoint for `rollback`).
+- **Cast/agent keys** (`orchestrator|rootcause|coder|critic|pm`) come from the brain; to add a specialist, add a `VOICES` entry, a Switch rule, and a `Send: …` node bound to its bot.
