@@ -20,9 +20,12 @@ export function Footer() {
         <div className="flex flex-col gap-8 py-10 sm:flex-row sm:items-start sm:justify-between sm:py-12">
           {/* wordmark + descriptor */}
           <div className="flex flex-col gap-2">
-            <span className="font-display text-lg font-semibold tracking-tightish text-fg">
-              {SITE.name}
-            </span>
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="Quorum logo" className="h-7 w-7 rounded-md" />
+              <span className="font-display text-lg font-semibold tracking-tightish text-fg">
+                {SITE.name}
+              </span>
+            </div>
             <p className="max-w-xs text-sm leading-relaxed text-muted">{DESCRIPTOR}</p>
           </div>
 

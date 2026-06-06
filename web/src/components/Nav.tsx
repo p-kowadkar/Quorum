@@ -1,5 +1,3 @@
-import { UsersThree } from "@phosphor-icons/react";
-
 import { SITE } from "../lib/site";
 import { Container } from "./ui/Container";
 
@@ -15,13 +13,9 @@ export function Nav() {
       <Container className="flex h-16 items-center justify-between gap-4">
         <a
           href="#top"
-          className="group inline-flex items-center gap-2 rounded-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-resolve/40 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+          className="group inline-flex items-center gap-2.5 rounded-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-resolve/40 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
         >
-          <UsersThree
-            weight="duotone"
-            className="h-5 w-5 text-resolve"
-            aria-hidden="true"
-          />
+          <img src="/logo.png" alt="Quorum logo" className="h-8 w-8 rounded-md" />
           <span className="font-display text-lg font-semibold tracking-tightish text-fg">
             {SITE.name}
           </span>
